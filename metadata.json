@@ -1,0 +1,7 @@
+{
+  "name": "TraderPro - Gerenciamento de Banca",
+  "description": "Sistema profissional de gerenciamento de banca, metas diárias de trading, cálculo de juros compostos e stop loss.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
