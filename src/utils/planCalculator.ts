@@ -72,3 +72,52 @@ export function generateDailyPlan(config: PlanConfig, existingItems: DailyPlanIt
 
   return items;
 }
+
+export interface PlanMetrics {
+  totalWins: number;
+  totalLosses: number;
+  netProfit: number;
+  calculatedBalance: number;
+  completedDaysCount: number;
+  winCount: number;
+  lossCount: number;
+}
+
+export function calculatePlanMetrics(
+  config: PlanConfig,
+  items: DailyPlanItem[]
+): PlanMetrics {
+  let totalWins = 0;
+  let totalLosses = 0;
+  let winCount = 0;
+  let lossCount = 0;
+  let completedDaysCount = 0;
+
+  for (const item of items) {
+    if (item.status === 'win') {
+      const profit = item.actualProfit > 0 ? item.actualProfit : item.targetProfit;
+      totalWins += profit;
+      winCount++;
+      completedDaysCount++;
+    } else if (item.status === 'loss') {
+      const loss = item.actualProfit !== 0 ? Math.abs(item.actualProfit) : item.stopLossAmount;
+      totalLosses += loss;
+      lossCount++;
+      completedDaysCount++;
+    }
+  }
+
+  const netProfit = totalWins - totalLosses;
+  const calculatedBalance = Math.max(0, config.initialBalance + netProfit);
+
+  return {
+    totalWins,
+    totalLosses,
+    netProfit,
+    calculatedBalance,
+    completedDaysCount,
+    winCount,
+    lossCount,
+  };
+}
+

@@ -37,17 +37,30 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
     setCurrentBalance(config.currentBalance);
   }, [config]);
 
+  const handleInitialBalanceChange = (val: number) => {
+    setInitialBalance(val);
+    if (currentBalance === 0 || currentBalance === initialBalance) {
+      setCurrentBalance(val);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalInitBalance = Number.isFinite(Number(initialBalance)) ? Number(initialBalance) : 0;
+    let finalCurrentBalance = Number.isFinite(Number(currentBalance)) ? Number(currentBalance) : 0;
+    if (finalCurrentBalance === 0 && finalInitBalance > 0) {
+      finalCurrentBalance = finalInitBalance;
+    }
+
     onSaveConfig({
       ...config,
-      initialBalance: Number.isFinite(Number(initialBalance)) ? Number(initialBalance) : 0,
+      initialBalance: finalInitBalance,
       finalTarget: Number.isFinite(Number(finalTarget)) ? Number(finalTarget) : 0,
-      durationDays: Number(durationDays) || 120,
+      durationDays: Number(durationDays) || 30,
       startDate: startDate || '2026-09-16',
       dailyProfitPercent: Number.isFinite(Number(dailyProfitPercent)) ? Number(dailyProfitPercent) : 0,
       stopLossPercent: Number.isFinite(Number(stopLossPercent)) ? Number(stopLossPercent) : 0,
-      currentBalance: Number.isFinite(Number(currentBalance)) ? Number(currentBalance) : 0,
+      currentBalance: finalCurrentBalance,
     });
   };
 
@@ -99,7 +112,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                 type="number"
                 step="any"
                 value={initialBalance}
-                onChange={(e) => setInitialBalance(parseFloat(e.target.value) || 0)}
+                onChange={(e) => handleInitialBalanceChange(parseFloat(e.target.value) || 0)}
                 placeholder="0"
                 className="w-full bg-[#12161b] border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono transition-colors shadow-inner"
               />
@@ -139,12 +152,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                   onChange={(e) => setDurationDays(parseInt(e.target.value, 10))}
                   className="w-full bg-[#12161b] border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 appearance-none transition-colors cursor-pointer"
                 >
+                  <option value={7}>7 Dias (1 Semana)</option>
+                  <option value={15}>15 Dias</option>
                   <option value={30}>30 Dias</option>
                   <option value={60}>60 Dias</option>
                   <option value={90}>90 Dias</option>
                   <option value={120}>120 Dias</option>
-                  <option value={180}>180 Dias</option>
-                  <option value={365}>365 Dias (1 Ano)</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-neutral-400">
                   <svg
@@ -240,16 +253,28 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                   Utilizado para calcular a diferença e meta do dia atual.
                 </span>
               </div>
-              <div className="w-full sm:w-48">
-                <input
-                  type="number"
-                  step="0.01"
-                  value={currentBalance}
-                  onChange={(e) =>
-                    setCurrentBalance(parseFloat(e.target.value) || 0)
-                  }
-                  className="w-full bg-[#141920] border border-neutral-700/60 rounded-lg px-3 py-2 text-sm text-white font-mono"
-                />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="w-full sm:w-44">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={currentBalance}
+                    onChange={(e) =>
+                      setCurrentBalance(parseFloat(e.target.value) || 0)
+                    }
+                    className="w-full bg-[#141920] border border-neutral-700/60 rounded-lg px-3 py-2 text-sm text-white font-mono"
+                  />
+                </div>
+                {initialBalance > 0 && currentBalance !== initialBalance && (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentBalance(initialBalance)}
+                    className="px-2.5 py-2 text-[11px] font-medium bg-[#1a222c] hover:bg-[#222d3a] text-amber-400 rounded-lg border border-amber-500/30 whitespace-nowrap transition-colors cursor-pointer"
+                    title="Definir igual à Banca Inicial"
+                  >
+                    Usar Banca
+                  </button>
+                )}
               </div>
             </div>
           </div>

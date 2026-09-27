@@ -4,7 +4,7 @@ import { NavigationTabs } from './components/NavigationTabs';
 import { TableView } from './components/TableView';
 import { ConfigView } from './components/ConfigView';
 import { PlanConfig, DailyPlanItem, ViewTab, ResultStatus } from './types';
-import { generateDailyPlan, formatBRL } from './utils/planCalculator';
+import { generateDailyPlan, formatBRL, calculatePlanMetrics } from './utils/planCalculator';
 import { CheckCircle2 } from 'lucide-react';
 
 const STORAGE_KEY_CONFIG = 'traderpro_plan_config_v3';
@@ -13,7 +13,7 @@ const STORAGE_KEY_ITEMS = 'traderpro_plan_items_v3';
 const DEFAULT_CONFIG: PlanConfig = {
   initialBalance: 0,
   finalTarget: 0,
-  durationDays: 120,
+  durationDays: 30,
   startDate: '2026-09-16',
   dailyProfitPercent: 0,
   stopLossPercent: 0,
@@ -26,7 +26,13 @@ export default function App() {
   const [config, setConfig] = useState<PlanConfig>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.currentBalance === 0 && parsed.initialBalance > 0) {
+          parsed.currentBalance = parsed.initialBalance;
+        }
+        return parsed;
+      }
     } catch {
       // ignore
     }
@@ -72,6 +78,9 @@ export default function App() {
 
   // Handle plan reconfiguration
   const handleSaveConfig = (newConfig: PlanConfig) => {
+    if (newConfig.currentBalance === 0 && newConfig.initialBalance > 0) {
+      newConfig.currentBalance = newConfig.initialBalance;
+    }
     setConfig(newConfig);
     const newItems = generateDailyPlan(newConfig, items);
     setItems(newItems);
@@ -104,15 +113,47 @@ export default function App() {
     // Re-calculate accumulated values
     const regenerated = generateDailyPlan(config, updated);
     setItems(regenerated);
+
+    // Automatically update currentBalance to match updated operations
+    const metrics = calculatePlanMetrics(config, regenerated);
+    setConfig((prev) => ({
+      ...prev,
+      currentBalance: metrics.calculatedBalance,
+    }));
   };
 
-  // Simulate broker balance sync
+  // Synchronize broker balance with plan operations
   const handleSyncBalance = () => {
     setIsSyncing(true);
     setTimeout(() => {
+      const metrics = calculatePlanMetrics(config, items);
+      const newBalance = metrics.calculatedBalance;
+
+      setConfig((prev) => ({
+        ...prev,
+        currentBalance: newBalance,
+      }));
       setIsSyncing(false);
-      showNotification(`Saldo sincronizado com sucesso: ${formatBRL(config.currentBalance)}`);
-    }, 900);
+
+      if (metrics.completedDaysCount > 0) {
+        const sign = metrics.netProfit >= 0 ? '+' : '';
+        showNotification(
+          `Saldo sincronizado com sucesso: ${formatBRL(newBalance)} (Operações: ${sign}${formatBRL(metrics.netProfit)})`
+        );
+      } else {
+        showNotification(`Saldo sincronizado com sucesso: ${formatBRL(newBalance)}`);
+      }
+    }, 600);
+  };
+
+  // Handle manual update of broker balance
+  const handleUpdateCurrentBalance = (newBalance: number) => {
+    const valid = Number.isFinite(newBalance) ? Math.max(0, newBalance) : 0;
+    setConfig((prev) => ({
+      ...prev,
+      currentBalance: valid,
+    }));
+    showNotification(`Saldo real da corretora atualizado com sucesso: ${formatBRL(valid)}`);
   };
 
   const showNotification = (msg: string) => {
@@ -147,6 +188,7 @@ export default function App() {
             items={items}
             onUpdateItemStatus={handleUpdateItemStatus}
             onSyncBalance={handleSyncBalance}
+            onUpdateCurrentBalance={handleUpdateCurrentBalance}
             onResetPlanClick={() => setCurrentTab('config')}
             isSyncing={isSyncing}
           />
