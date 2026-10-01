@@ -27,4 +27,17 @@ export interface PlanConfig {
   brokerName: string;
 }
 
-export type ViewTab = 'table' | 'config';
+export type ViewTab = 'table' | 'config' | 'supabase';
+
+export interface SupabaseConfig {
+  url: string;
+  anonKey: string;
+  autoSync: boolean;
+}
+
+export interface CloudSyncState {
+  isConnected: boolean;
+  isSyncing: boolean;
+  lastSyncedAt: string | null;
+  error: string | null;
+}

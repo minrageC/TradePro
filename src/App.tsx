@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { NavigationTabs } from './components/NavigationTabs';
 import { TableView } from './components/TableView';
 import { ConfigView } from './components/ConfigView';
+import { SupabaseVercelView } from './components/SupabaseVercelView';
 import { PlanConfig, DailyPlanItem, ViewTab, ResultStatus } from './types';
 import { generateDailyPlan, formatBRL, calculatePlanMetrics } from './utils/planCalculator';
+import { getSupabaseSettings } from './lib/supabase';
+import { savePlanToSupabase, loadPlanFromSupabase, testSupabaseConnection } from './services/supabaseService';
 import { CheckCircle2 } from 'lucide-react';
 
 const STORAGE_KEY_CONFIG = 'traderpro_plan_config_v3';
@@ -58,15 +61,43 @@ export default function App() {
   const [showBalance, setShowBalance] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
 
-  // Save to localStorage
+  const autoSyncTimeoutRef = useRef<any>(null);
+
+  // Check Supabase connection on startup
+  const checkSupabase = useCallback(async () => {
+    const settings = getSupabaseSettings();
+    if (settings.isConfigured) {
+      const res = await testSupabaseConnection();
+      setSupabaseConnected(res.success);
+    } else {
+      setSupabaseConnected(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkSupabase();
+  }, [checkSupabase]);
+
+  // Save to localStorage and auto-sync to Supabase if enabled
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
     } catch {
       // ignore
     }
-  }, [config]);
+
+    const settings = getSupabaseSettings();
+    if (settings.isConfigured && settings.autoSync && supabaseConnected) {
+      if (autoSyncTimeoutRef.current) {
+        clearTimeout(autoSyncTimeoutRef.current);
+      }
+      autoSyncTimeoutRef.current = setTimeout(() => {
+        savePlanToSupabase(config, items).catch(() => {});
+      }, 1200);
+    }
+  }, [config, items, supabaseConnected]);
 
   useEffect(() => {
     try {
@@ -86,6 +117,13 @@ export default function App() {
     setItems(newItems);
     setCurrentTab('table');
     showNotification('Plano reconfigurado com sucesso!');
+  };
+
+  // Handle applying remote plan loaded from Supabase
+  const handleApplyRemotePlan = (remoteConfig: PlanConfig, remoteItems: DailyPlanItem[]) => {
+    setConfig(remoteConfig);
+    setItems(remoteItems);
+    showNotification('Plano sincronizado do Supabase com sucesso!');
   };
 
   // Handle item status update
@@ -177,8 +215,14 @@ export default function App() {
         {/* Navigation Tabs */}
         <NavigationTabs
           currentTab={currentTab}
-          onSelectTab={setCurrentTab}
+          onSelectTab={(tab) => {
+            setCurrentTab(tab);
+            if (tab === 'supabase') {
+              checkSupabase();
+            }
+          }}
           brokerConnected={config.brokerConnected}
+          supabaseConnected={supabaseConnected}
         />
 
         {/* Dynamic Views */}
@@ -198,6 +242,15 @@ export default function App() {
           <ConfigView
             config={config}
             onSaveConfig={handleSaveConfig}
+          />
+        )}
+
+        {currentTab === 'supabase' && (
+          <SupabaseVercelView
+            config={config}
+            items={items}
+            onApplyRemotePlan={handleApplyRemotePlan}
+            onShowToast={showNotification}
           />
         )}
       </main>
